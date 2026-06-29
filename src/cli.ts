@@ -7,6 +7,7 @@ import { loadState, saveState } from './state.js'
 import { main as statuslineMain } from './statusline.js'
 import { main as hookPromptMain } from './hook-prompt.js'
 import { main as hookToolMain } from './hook-tool.js'
+import { main as mcpMain } from './mcp.js'
 
 const SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 
@@ -34,7 +35,50 @@ function writeSettings(s: Record<string, unknown>): void {
 
 function cmdInstall() {
   const s = readSettings()
-  writeSettings({ ...s, statusLine: HOOKS.statusLine, hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks } })
+  writeSettings({
+    ...s,
+    statusLine: HOOKS.statusLine,
+    hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks },
+    mcpServers: {
+      ...(s.mcpServers as object ?? {}),
+      'claude-ration': {
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', 'claude-ration@latest', 'mcp'],
+      }
+    }
+  })
+
+  // slash commands 등록
+  const commandsDir = join(homedir(), '.claude', 'commands')
+  if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true })
+
+  writeFileSync(join(commandsDir, 'ration-status.md'), `---
+description: Show claude-ration usage and current limits
+allowed-tools: Bash(npx *)
+---
+Run this and show the output:
+!\`npx -y claude-ration@latest status\`
+`)
+
+  writeFileSync(join(commandsDir, 'ration-set.md'), `---
+description: Set claude-ration limit (e.g. /ration-set daily.stop 75)
+argument-hint: <daily.stop|daily.warn|weekly.stop|weekly.warn> <0-100>
+allowed-tools: Bash(npx *)
+---
+Run this and show the result:
+!\`npx -y claude-ration@latest config set $ARGUMENTS\`
+`)
+
+  writeFileSync(join(commandsDir, 'ration-override.md'), `---
+description: Temporarily disable claude-ration limits (e.g. /ration-override 30)
+argument-hint: [minutes]
+allowed-tools: Bash(npx *)
+---
+Run this and show the result:
+!\`npx -y claude-ration@latest override $ARGUMENTS\`
+`)
+
   const config = loadConfig()
   console.log('claude-ration installed!')
   console.log('Config file: ' + SETTINGS_PATH)
@@ -121,5 +165,6 @@ switch (cmd) {
   case 'statusline': statuslineMain(); break
   case 'hook-prompt': hookPromptMain(); break
   case 'hook-tool':  hookToolMain(); break
+  case 'mcp': mcpMain(); break
   default:           printHelp()
 }

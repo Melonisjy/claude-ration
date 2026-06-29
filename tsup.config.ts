@@ -6,6 +6,7 @@ export default defineConfig({
     statusline: 'src/statusline.ts',
     'hook-prompt': 'src/hook-prompt.ts',
     'hook-tool': 'src/hook-tool.ts',
+    mcp: 'src/mcp.ts',
   },
   format: ['esm'],
   target: 'node18',
