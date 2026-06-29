@@ -24,9 +24,9 @@ async function main() {
 
   // Claude Code에 차단 메시지 출력
   process.stderr.write(
-    `\n🛡️  claude-guardian: ${reason}\n` +
+    `\n🛡️  claude-ration: ${reason}\n` +
     `새 작업을 시작할 수 없습니다. ${resetMsg}\n` +
-    `한도를 해제하려면: claude-guardian override\n\n`
+    `한도를 해제하려면: claude-ration override\n\n`
   )
 
   // exit 2 = UserPromptSubmit 차단 신호

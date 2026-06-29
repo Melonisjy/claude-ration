@@ -27,7 +27,7 @@ async function main() {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          `[claude-guardian] ${reason}. ` +
+          `[claude-ration] ${reason}. ` +
           `현재 작업을 마무리하고 중단해주세요. 새로운 툴 호출은 차단됩니다.`,
       },
     }
@@ -38,7 +38,7 @@ async function main() {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `[claude-guardian] ${reason}. 즉시 중단.`,
+        permissionDecisionReason: `[claude-ration] ${reason}. 즉시 중단.`,
       },
     }
     process.stdout.write(JSON.stringify(output))

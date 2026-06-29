@@ -1,5 +1,5 @@
 import { loadConfig } from './config.js'
-import { saveState } from './state.js'
+import { loadState, saveState } from './state.js'
 import { homedir } from 'os'
 import { join } from 'path'
 import { readFileSync, existsSync } from 'fs'
@@ -106,7 +106,7 @@ async function main() {
     daily_pct: dailyPct,
     weekly_pct: weeklyPct,
     reset_in_seconds: resetSecs,
-    override_until: null,
+    override_until: loadState().override_until,  // 갱신 때마다 override 보존
     updated_at: new Date().toISOString(),
   })
 

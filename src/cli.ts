@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 import { loadConfig, saveConfig } from './config.js'
 import { loadState, saveState } from './state.js'
 
@@ -139,8 +140,15 @@ function cmdOverride(args: string[]) {
   console.log('Limits disabled for ' + minutes + ' minutes.')
 }
 
+function getVersion(): string {
+  try {
+    const pkg = join(fileURLToPath(import.meta.url), '..', '..', 'package.json')
+    return JSON.parse(readFileSync(pkg, 'utf-8')).version
+  } catch { return '?' }
+}
+
 function printHelp() {
-  console.log('\nclaude-ration v0.1.2\n')
+  console.log('\nclaude-ration v' + getVersion() + '\n')
   console.log('Usage:')
   console.log('  claude-ration install                Install')
   console.log('  claude-ration uninstall              Remove')
