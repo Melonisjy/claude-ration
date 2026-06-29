@@ -85,9 +85,17 @@ function formatReset(seconds: number): string {
 }
 
 async function main() {
-  // stdin 읽기 (Claude Code가 보내는 session JSON)
+  // stdin은 타임아웃 걸고 읽기
   let raw = ''
-  for await (const chunk of process.stdin) raw += chunk
+  try {
+    const stdinPromise = (async () => {
+      for await (const chunk of process.stdin) raw += chunk
+    })()
+    await Promise.race([
+      stdinPromise,
+      new Promise(resolve => setTimeout(resolve, 500))
+    ])
+  } catch { }
 
   const config = loadConfig()
   const token = readOAuthToken()
