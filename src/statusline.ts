@@ -31,7 +31,11 @@ function readOAuthToken(): string | null {
 
 async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct: number; resetSecs: number } | null> {
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000) // 3초 타임아웃
+
     const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${token}`,
         'anthropic-beta': 'oauth-2025-04-20',
@@ -39,6 +43,7 @@ async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct:
         'Content-Type': 'application/json',
       },
     })
+    clearTimeout(timeout)
     if (!res.ok) return null
     const data = await res.json() as Record<string, unknown>
 
@@ -47,9 +52,7 @@ async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct:
 
     const dailyPct  = fiveHour?.utilization ?? 0
     const weeklyPct = sevenDay?.utilization ?? 0
-
-    // resets_at에서 남은 초 계산
-    const resetsAt = fiveHour?.resets_at ?? sevenDay?.resets_at ?? null
+    const resetsAt  = fiveHour?.resets_at ?? null
     const resetSecs = resetsAt
       ? Math.max(0, Math.floor((new Date(resetsAt).getTime() - Date.now()) / 1000))
       : 0
@@ -62,7 +65,9 @@ async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct:
 
 function bar(pct: number, width = 10): string {
   const filled = Math.round((pct / 100) * width)
-  return '█'.repeat(filled) + '░'.repeat(width - filled)
+  const block = '\u2588'  // █
+  const empty = '\u2591'  // ░
+  return block.repeat(filled) + empty.repeat(width - filled)
 }
 
 function colorize(text: string, pct: number, warnAt: number, stopAt: number): string {

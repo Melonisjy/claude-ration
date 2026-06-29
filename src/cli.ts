@@ -13,7 +13,7 @@ const SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 const HOOKS = {
   statusLine: {
     type: 'command',
-    command: 'node ' + join(/* npx 캐시 경로 */),
+    command: 'npx -y claude-ration@latest statusline',
   },
   hooks: {
     UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-prompt' }] }],

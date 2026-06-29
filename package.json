@@ -4,10 +4,7 @@
   "description": "Automatically stops Claude Code when it hits your custom usage threshold",
   "type": "module",
   "bin": {
-    "claude-ration": "./dist/cli.js",
-    "claude-ration-statusline": "./dist/statusline.js",
-    "claude-ration-hook-prompt": "./dist/hook-prompt.js",
-    "claude-ration-hook-tool": "./dist/hook-tool.js"
+  "claude-ration": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsup",
