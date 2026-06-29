@@ -48,6 +48,14 @@ To override: claude-ration override
 Please wrap up the current task and stop. New tool calls are now blocked.
 ```
 
+**Slash commands** (built into Claude Code):
+
+```
+/ration-status     → show current usage + limits
+/ration-set daily.stop 75  → update threshold
+/ration-override 30        → disable limits for 30 min
+```
+
 ## Who this is for
 
 **Claude Pro users.** The 5-hour usage window resets every 5 hours — and on Pro, it's easy to burn through it mid-task without realizing it.
@@ -73,6 +81,9 @@ npx claude-ration install
 ```
 
 Restart Claude Code. That's it.
+
+> **Note:** Run this from each project directory where you use Claude Code.  
+> Claude Code loads the nearest `.claude/settings.local.json` first, so the install command updates both your home directory and the current project automatically.
 
 ## How it works
 
@@ -102,6 +113,14 @@ claude-ration config set weekly.stop 85
 # Temporarily disable limits (default: 60 min)
 claude-ration override
 claude-ration override 30
+```
+
+Or use slash commands directly in Claude Code:
+
+```
+/ration-set daily.stop 75
+/ration-override 30
+/ration-status
 ```
 
 Or edit `~/.claude/ration/config.json` directly:

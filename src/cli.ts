@@ -1,16 +1,18 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { fileURLToPath } from 'url'
 import { loadConfig, saveConfig } from './config.js'
 import { loadState, saveState } from './state.js'
-
 import { main as statuslineMain } from './statusline.js'
 import { main as hookPromptMain } from './hook-prompt.js'
 import { main as hookToolMain } from './hook-tool.js'
 import { main as mcpMain } from './mcp.js'
+import { createRequire } from 'module'
 
-const SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
+const require = createRequire(import.meta.url)
+const pkg = require('../package.json')
+
+const HOME_SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 
 const HOOKS = {
   statusLine: {
@@ -23,20 +25,20 @@ const HOOKS = {
   },
 }
 
-function readSettings(): Record<string, unknown> {
-  if (!existsSync(SETTINGS_PATH)) return {}
-  try { return JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) } catch { return {} }
+function readJson(path: string): Record<string, unknown> {
+  if (!existsSync(path)) return {}
+  try { return JSON.parse(readFileSync(path, 'utf-8')) } catch { return {} }
 }
 
-function writeSettings(s: Record<string, unknown>): void {
-  const dir = join(homedir(), '.claude')
+function writeJson(path: string, data: Record<string, unknown>): void {
+  const dir = path.substring(0, path.lastIndexOf('/') === -1 ? path.lastIndexOf('\\') : path.lastIndexOf('/'))
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2))
+  writeFileSync(path, JSON.stringify(data, null, 2))
 }
 
-function cmdInstall() {
-  const s = readSettings()
-  writeSettings({
+function applySettings(path: string): void {
+  const s = readJson(path)
+  writeJson(path, {
     ...s,
     statusLine: HOOKS.statusLine,
     hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks },
@@ -49,8 +51,27 @@ function cmdInstall() {
       }
     }
   })
+}
 
-  // slash commands 등록
+function cmdInstall() {
+  // 1. 홈 디렉토리
+  applySettings(HOME_SETTINGS_PATH)
+  console.log('Installed to: ' + HOME_SETTINGS_PATH)
+
+  // 2. 현재 프로젝트 .claude/settings.local.json
+  const projectSettingsDir = join(process.cwd(), '.claude')
+  const projectSettingsPath = join(projectSettingsDir, 'settings.local.json')
+  if (existsSync(projectSettingsDir)) {
+    const s = readJson(projectSettingsPath)
+    writeJson(projectSettingsPath, {
+      ...s,
+      statusLine: HOOKS.statusLine,
+      hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks },
+    })
+    console.log('Installed to: ' + projectSettingsPath)
+  }
+
+  // 3. slash commands 등록
   const commandsDir = join(homedir(), '.claude', 'commands')
   if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true })
 
@@ -81,25 +102,26 @@ Run this and show the result:
 `)
 
   const config = loadConfig()
-  console.log('claude-ration installed!')
-  console.log('Config file: ' + SETTINGS_PATH)
+  console.log('\nclaude-ration installed!')
   console.log('Restart Claude Code to apply.\n')
   console.log('Current config:')
   console.log('  Daily  - warn: ' + config.daily.warn + '% / stop: ' + config.daily.stop + '%')
   console.log('  Weekly - warn: ' + config.weekly.warn + '% / stop: ' + config.weekly.stop + '%')
   console.log('  Mode: ' + (config.graceful ? 'graceful' : 'hard stop'))
+  console.log('\nSlash commands registered: /ration-status, /ration-set, /ration-override')
 }
 
 function cmdUninstall() {
-  const s = readSettings()
+  const s = readJson(HOME_SETTINGS_PATH)
   delete s['statusLine']
+  delete s['mcpServers']
   if (s.hooks && typeof s.hooks === 'object') {
     const h = s.hooks as Record<string, unknown>
     delete h['UserPromptSubmit']
     delete h['PreToolUse']
     if (Object.keys(h).length === 0) delete s['hooks']
   }
-  writeSettings(s)
+  writeJson(HOME_SETTINGS_PATH, s)
   console.log('claude-ration uninstalled.')
 }
 
@@ -140,15 +162,8 @@ function cmdOverride(args: string[]) {
   console.log('Limits disabled for ' + minutes + ' minutes.')
 }
 
-function getVersion(): string {
-  try {
-    const pkg = join(fileURLToPath(import.meta.url), '..', '..', 'package.json')
-    return JSON.parse(readFileSync(pkg, 'utf-8')).version
-  } catch { return '?' }
-}
-
 function printHelp() {
-  console.log('\nclaude-ration v' + getVersion() + '\n')
+  console.log('\nclaude-ration v' + pkg.version + '\n')
   console.log('Usage:')
   console.log('  claude-ration install                Install')
   console.log('  claude-ration uninstall              Remove')
