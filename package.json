@@ -1,7 +1,7 @@
 {
   "name": "claude-ration",
   "version": "0.1.0",
-  "description": "Claude Code usage limiter — auto-stop at custom thresholds",
+  "description": "Automatically stops Claude Code when it hits your custom usage threshold",
   "type": "module",
   "bin": {
     "claude-ration": "./dist/cli.js"
@@ -14,11 +14,29 @@
   "keywords": [
     "claude",
     "claude-code",
-    "plugin",
+    "anthropic",
     "usage",
-    "limit"
+    "limit",
+    "rate-limit",
+    "plugin",
+    "hook",
+    "statusline"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/Melonisjy/claude-ration",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Melonisjy/claude-ration.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Melonisjy/claude-ration/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
     "@types/node": "^26.0.1",
     "tsup": "^8.0.0",
