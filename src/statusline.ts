@@ -130,7 +130,7 @@ async function main() {
     weeklyPct, config.weekly.warn, config.weekly.stop
   )
 
-  process.stdout.write(`${dailyStr}  ${weeklyStr}  reset ${formatReset(resetSecs)}`)
+  process.stdout.write(`${dailyStr}  ${weeklyStr}  reset ${formatReset(resetSecs)}\n`)
 }
 
 export { main }
