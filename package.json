@@ -1,6 +1,6 @@
 {
   "name": "claude-ration",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Automatically stops Claude Code when it hits your custom usage threshold",
   "type": "module",
   "bin": {
