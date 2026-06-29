@@ -4,12 +4,16 @@ import { join } from 'path'
 import { loadConfig, saveConfig } from './config.js'
 import { loadState, saveState } from './state.js'
 
+import { main as statuslineMain } from './statusline.js'
+import { main as hookPromptMain } from './hook-prompt.js'
+import { main as hookToolMain } from './hook-tool.js'
+
 const SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 
 const HOOKS = {
   statusLine: {
     type: 'command',
-    command: 'npx -y claude-ration@latest statusline',
+    command: 'node ' + join(/* npx 캐시 경로 */),
   },
   hooks: {
     UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-prompt' }] }],
@@ -109,10 +113,13 @@ function printHelp() {
 
 const [,, cmd, ...args] = process.argv
 switch (cmd) {
-  case 'install':   cmdInstall(); break
-  case 'uninstall': cmdUninstall(); break
-  case 'status':    cmdStatus(); break
-  case 'config':    cmdConfig(args); break
-  case 'override':  cmdOverride(args); break
-  default:          printHelp()
+  case 'install':    cmdInstall(); break
+  case 'uninstall':  cmdUninstall(); break
+  case 'status':     cmdStatus(); break
+  case 'config':     cmdConfig(args); break
+  case 'override':   cmdOverride(args); break
+  case 'statusline': statuslineMain(); break
+  case 'hook-prompt': hookPromptMain(); break
+  case 'hook-tool':  hookToolMain(); break
+  default:           printHelp()
 }

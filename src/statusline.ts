@@ -120,4 +120,4 @@ async function main() {
   process.stdout.write(`${dailyStr}  ${weeklyStr}  reset ${formatReset(resetSecs)}`)
 }
 
-main()
+export { main }
