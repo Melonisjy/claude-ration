@@ -1,29 +1,19 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { loadConfig, saveConfig, getConfigDir } from './config.js'
+import { loadConfig, saveConfig } from './config.js'
 import { loadState, saveState } from './state.js'
 
 const SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 
-const GUARDIAN_HOOKS = {
+const HOOKS = {
   statusLine: {
     type: 'command',
     command: 'npx -y claude-ration@latest statusline',
   },
   hooks: {
-    UserPromptSubmit: [{
-      hooks: [{
-        type: 'command',
-        command: 'npx -y claude-ration@latest hook-prompt',
-      }],
-    }],
-    PreToolUse: [{
-      hooks: [{
-        type: 'command',
-        command: 'npx -y claude-ration@latest hook-tool',
-      }],
-    }],
+    UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-prompt' }] }],
+    PreToolUse: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-tool' }] }],
   },
 }
 
@@ -32,109 +22,97 @@ function readSettings(): Record<string, unknown> {
   try { return JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) } catch { return {} }
 }
 
-function writeSettings(settings: Record<string, unknown>): void {
+function writeSettings(s: Record<string, unknown>): void {
   const dir = join(homedir(), '.claude')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2))
+  writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2))
 }
 
 function cmdInstall() {
-  const settings = readSettings()
-  const merged = {
-    ...settings,
-    statusLine: GUARDIAN_HOOKS.statusLine,
-    hooks: {
-      ...(settings.hooks as object ?? {}),
-      ...GUARDIAN_HOOKS.hooks,
-    },
-  }
-  writeSettings(merged)
-  console.log('✅ claude-ration installed!')
-  console.log(`📁 Config file: ${SETTINGS_PATH}`)
-  console.log('🔄 Restart Claude Code to apply.\n')
-  console.log('Current config:')
+  const s = readSettings()
+  writeSettings({ ...s, statusLine: HOOKS.statusLine, hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks } })
   const config = loadConfig()
-  console.log(`  Daily  — warn: ${config.daily.warn}% / stop: ${config.daily.stop}%`)
-  console.log(`  Weekly — warn: ${config.weekly.warn}% / stop: ${config.weekly.stop}%`)
-  console.log(`  Mode: ${config.graceful ? 'graceful' : 'hard stop'}`)
+  console.log('claude-ration installed!')
+  console.log('Config file: ' + SETTINGS_PATH)
+  console.log('Restart Claude Code to apply.\n')
+  console.log('Current config:')
+  console.log('  Daily  - warn: ' + config.daily.warn + '% / stop: ' + config.daily.stop + '%')
+  console.log('  Weekly - warn: ' + config.weekly.warn + '% / stop: ' + config.weekly.stop + '%')
+  console.log('  Mode: ' + (config.graceful ? 'graceful' : 'hard stop'))
 }
 
 function cmdUninstall() {
-  const settings = readSettings()
-  delete settings['statusLine']
-  if (settings.hooks && typeof settings.hooks === 'object') {
-    const hooks = settings.hooks as Record<string, unknown>
-    delete hooks['UserPromptSubmit']
-    delete hooks['PreToolUse']
-    if (Object.keys(hooks).length === 0) delete settings['hooks']
+  const s = readSettings()
+  delete s['statusLine']
+  if (s.hooks && typeof s.hooks === 'object') {
+    const h = s.hooks as Record<string, unknown>
+    delete h['UserPromptSubmit']
+    delete h['PreToolUse']
+    if (Object.keys(h).length === 0) delete s['hooks']
   }
-  writeSettings(settings)
-  console.log('✅ claude-ration uninstalled.')
+  writeSettings(s)
+  console.log('claude-ration uninstalled.')
 }
 
 function cmdStatus() {
-  const state  = loadState()
+  const state = loadState()
   const config = loadConfig()
-  console.log('\n🛡️  claude-ration status\n')
-  console.log(`  Daily:  ${state.daily_pct.toFixed(1)}%  (warn ${config.daily.warn}% / stop ${config.daily.stop}%)`)
-  console.log(`  Weekly: ${state.weekly_pct.toFixed(1)}%  (warn ${config.weekly.warn}% / stop ${config.weekly.stop}%)`)
+  console.log('\nclaude-ration status\n')
+  console.log('  Daily:  ' + state.daily_pct.toFixed(1) + '%  (warn ' + config.daily.warn + '% / stop ' + config.daily.stop + '%)')
+  console.log('  Weekly: ' + state.weekly_pct.toFixed(1) + '%  (warn ' + config.weekly.warn + '% / stop ' + config.weekly.stop + '%)')
   if (state.reset_in_seconds > 0) {
     const h = Math.floor(state.reset_in_seconds / 3600)
     const m = Math.floor((state.reset_in_seconds % 3600) / 60)
-    console.log(`  Resets in: ${h}h ${m}m`)
+    console.log('  Resets in: ' + h + 'h ' + m + 'm')
   }
   console.log()
 }
 
 function cmdConfig(args: string[]) {
   const config = loadConfig()
-  if (args.length === 0) {
-    console.log(JSON.stringify(config, null, 2))
-    return
-  }
+  if (args.length === 0) { console.log(JSON.stringify(config, null, 2)); return }
   if (args[0] === 'set' && args[1] && args[2]) {
     const [section, key] = args[1].split('.')
     const value = Number(args[2])
-    if (isNaN(value) || value < 0 || value > 100) {
-      console.error('Value must be a number between 0 and 100.')
-      process.exit(1)
-    }
+    if (isNaN(value) || value < 0 || value > 100) { console.error('Value must be 0-100.'); process.exit(1) }
     const cfg = config as unknown as Record<string, Record<string, number | boolean>>
     if (cfg[section] && key in cfg[section]) {
       (cfg[section][key] as number) = value
       saveConfig(config)
-      console.log(`✅ ${args[1]} = ${value}`)
-    } else {
-      console.error(`Unknown config key: ${args[1]}`)
-      process.exit(1)
-    }
+      console.log(args[1] + ' = ' + value)
+    } else { console.error('Unknown key: ' + args[1]); process.exit(1) }
   }
 }
 
 function cmdOverride(args: string[]) {
   const state = loadState()
   const minutes = args[0] ? parseInt(args[0]) : 60
-  const until = new Date(Date.now() + minutes * 60 * 1000).toISOString()
-  saveState({ ...state, override_until: until })
-  console.log(`✅ Limits disabled for ${minutes} minutes.`)
+  saveState({ ...state, override_until: new Date(Date.now() + minutes * 60 * 1000).toISOString() })
+  console.log('Limits disabled for ' + minutes + ' minutes.')
 }
 
 function printHelp() {
-  console.log(`
-🛡️  claude-ration v0.1.0
+  console.log('\nclaude-ration v0.1.2\n')
+  console.log('Usage:')
+  console.log('  claude-ration install                Install')
+  console.log('  claude-ration uninstall              Remove')
+  console.log('  claude-ration status                 Show current usage')
+  console.log('  claude-ration config                 Show config')
+  console.log('  claude-ration config set <key> <val> Update config')
+  console.log('  claude-ration override [minutes]     Disable limits temporarily\n')
+  console.log('Config keys:')
+  console.log('  daily.warn    Daily warning threshold  (default: 60)')
+  console.log('  daily.stop    Daily stop threshold     (default: 70)')
+  console.log('  weekly.warn   Weekly warning threshold (default: 70)')
+  console.log('  weekly.stop   Weekly stop threshold    (default: 80)')
+}
 
-Usage:
-  claude-ration install                Install (registers hooks in settings.local.json)
-  claude-ration uninstall              Remove
-  claude-ration status                 Show current usage
-  claude-ration config                 Show current config
-  claude-ration config set <key> <val> Update a config value
-  claude-ration override [minutes]     Disable limits temporarily (default: 60 min)
-
-Config keys:
-  daily.warn    Daily warning threshold  (default: 60)
-  daily.stop    Daily stop threshold     (default: 70)
-  weekly.warn   Weekly warning threshold (default: 70)
-  weekly.stop   Weekly stop threshold    (default: 80)
-`)
+const [,, cmd, ...args] = process.argv
+switch (cmd) {
+  case 'install':   cmdInstall(); break
+  case 'uninstall': cmdUninstall(); break
+  case 'status':    cmdStatus(); break
+  case 'config':    cmdConfig(args); break
+  case 'override':  cmdOverride(args); break
+  default:          printHelp()
 }
