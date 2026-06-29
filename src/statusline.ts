@@ -84,32 +84,7 @@ function formatReset(seconds: number): string {
   return `${m}m`
 }
 
-async function main() {
-
-   const config = loadConfig()
-  const token = readOAuthToken()
-
-  let dailyPct = 0
-  let weeklyPct = 0
-  let resetSecs = 0
-
-  if (token) {
-    const usage = await fetchUsage(token)
-    if (usage) {
-      dailyPct  = usage.dailyPct
-      weeklyPct = usage.weeklyPct
-      resetSecs = usage.resetSecs
-    }
-  }
-
-  saveState({
-    daily_pct: dailyPct,
-    weekly_pct: weeklyPct,
-    reset_in_seconds: resetSecs,
-    override_until: loadState().override_until,  // 갱신 때마다 override 보존
-    updated_at: new Date().toISOString(),
-  })
-
+function render(config: ReturnType<typeof loadConfig>, dailyPct: number, weeklyPct: number, resetSecs: number): string {
   const dailyStr = colorize(
     `daily ${dailyPct.toFixed(0)}% ${bar(dailyPct)} /${config.daily.stop}%`,
     dailyPct, config.daily.warn, config.daily.stop
@@ -118,8 +93,29 @@ async function main() {
     `weekly ${weeklyPct.toFixed(0)}% ${bar(weeklyPct)} /${config.weekly.stop}%`,
     weeklyPct, config.weekly.warn, config.weekly.stop
   )
+  return `${dailyStr}  ${weeklyStr}  reset ${formatReset(resetSecs)}\n`
+}
 
-  process.stdout.write(`${dailyStr}  ${weeklyStr}  reset ${formatReset(resetSecs)}\n`)
+async function main() {
+  const config = loadConfig()
+  const cached = loadState()
+
+  // 1. 캐시에서 즉시 출력 — 네트워크를 기다리지 않으므로 취소돼도 항상 렌더됨
+  process.stdout.write(render(config, cached.daily_pct, cached.weekly_pct, cached.reset_in_seconds))
+
+  // 2. 다음 렌더를 위해 백그라운드로 fetch 후 state 갱신 (출력은 이미 끝남)
+  // ponytail: 프로세스가 살아있는 동안만 갱신됨. Claude Code가 중간에 죽이면 그 회차만 스킵되고 다음 회차가 따라잡음 — 별도 데몬 불필요
+  const token = readOAuthToken()
+  if (!token) return
+  const usage = await fetchUsage(token)
+  if (!usage) return
+  saveState({
+    daily_pct: usage.dailyPct,
+    weekly_pct: usage.weeklyPct,
+    reset_in_seconds: usage.resetSecs,
+    override_until: cached.override_until,  // override 보존
+    updated_at: new Date().toISOString(),
+  })
 }
 
 export { main }
