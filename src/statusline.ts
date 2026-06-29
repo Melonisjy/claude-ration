@@ -85,19 +85,8 @@ function formatReset(seconds: number): string {
 }
 
 async function main() {
-  // stdin은 타임아웃 걸고 읽기
-  let raw = ''
-  try {
-    const stdinPromise = (async () => {
-      for await (const chunk of process.stdin) raw += chunk
-    })()
-    await Promise.race([
-      stdinPromise,
-      new Promise(resolve => setTimeout(resolve, 500))
-    ])
-  } catch { }
 
-  const config = loadConfig()
+   const config = loadConfig()
   const token = readOAuthToken()
 
   let dailyPct = 0
@@ -121,7 +110,7 @@ async function main() {
     updated_at: new Date().toISOString(),
   })
 
-  const dailyStr  = colorize(
+  const dailyStr = colorize(
     `daily ${dailyPct.toFixed(0)}% ${bar(dailyPct)} /${config.daily.stop}%`,
     dailyPct, config.daily.warn, config.daily.stop
   )
