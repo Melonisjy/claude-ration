@@ -12,13 +12,15 @@
 
 ---
 
-Claude Code keeps working until it hits 100% — then it dies mid-task.  
-Files left half-edited. Session gone. Nothing you can do until the next reset.
+If you're on **Claude Pro**, you know this feeling:
 
-**claude-ration** stops Claude at the threshold *you* set, gracefully, before it's too late.
+You kick off a big refactor. Claude's deep into it. Then — silence.  
+Usage hit 100%. Session dead. Files half-edited. Nothing you can do for hours.
+
+**claude-ration** stops Claude at *your* threshold — 70%, 80%, whatever — so it wraps up cleanly before the wall hits.
 
 ```
-Set daily limit to 70%, weekly to 80% → Claude wraps up and stops on its own.
+Set daily limit to 70% → Claude finishes what it's doing, then stops on its own.
 ```
 
 ## Demo
@@ -31,7 +33,7 @@ Set daily limit to 70%, weekly to 80% → Claude wraps up and stops on its own.
 daily 5% ██░░░░░░░░ /70%  weekly 13% █░░░░░░░░░ /80%  reset 1h 42m
 ```
 
-**When a new prompt is submitted over the limit:**
+**When you try to start a new task over the limit:**
 
 ```
 🛡️  claude-ration: daily usage 71% — limit (70%) exceeded
@@ -45,6 +47,14 @@ To override: claude-ration override
 [claude-ration] Daily limit 70% reached (current: 71%).
 Please wrap up the current task and stop. New tool calls are now blocked.
 ```
+
+## Who this is for
+
+**Claude Pro users.** The 5-hour usage window resets every 5 hours — and on Pro, it's easy to burn through it mid-task without realizing it.
+
+This tool lets you reserve a buffer. Set your stop at 70% and you'll always have headroom left for follow-up questions, quick fixes, or emergencies — instead of hitting a wall at the worst moment.
+
+> *On Claude Max? You probably hit limits less often, but claude-ration still works if you want tighter control.*
 
 ## Why this exists
 
