@@ -8,6 +8,7 @@ export interface GuardianState {
   reset_in_seconds: number
   override_until: string | null
   updated_at: string
+  graceful_grace_used: boolean
 }
 
 const EMPTY_STATE: GuardianState = {
@@ -16,6 +17,7 @@ const EMPTY_STATE: GuardianState = {
   reset_in_seconds: 0,
   override_until: null,
   updated_at: new Date().toISOString(),
+  graceful_grace_used: false,
 }
 
 function getStatePath(): string {

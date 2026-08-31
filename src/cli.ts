@@ -54,11 +54,11 @@ function applySettings(path: string): void {
 }
 
 function cmdInstall() {
-  // 1. 홈 디렉토리
+  // 1. home directory
   applySettings(HOME_SETTINGS_PATH)
   console.log('Installed to: ' + HOME_SETTINGS_PATH)
 
-  // 2. 현재 프로젝트 .claude/settings.local.json
+  // 2. current project's .claude/settings.local.json
   const projectSettingsDir = join(process.cwd(), '.claude')
   const projectSettingsPath = join(projectSettingsDir, 'settings.local.json')
   if (existsSync(projectSettingsDir)) {
@@ -71,7 +71,7 @@ function cmdInstall() {
     console.log('Installed to: ' + projectSettingsPath)
   }
 
-  // 3. slash commands 등록
+  // 3. register slash commands
   const commandsDir = join(homedir(), '.claude', 'commands')
   if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true })
 

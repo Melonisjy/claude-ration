@@ -14,7 +14,7 @@ interface UsageData {
   daily_percentage?: number
   weekly_percentage?: number
   reset_in_seconds?: number
-  // 혹시 다른 구조일 경우 대비
+  // fallback in case the API returns a different shape
   [key: string]: unknown
 }
 
@@ -32,7 +32,7 @@ function readOAuthToken(): string | null {
 async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct: number; resetSecs: number } | null> {
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3000) // 3초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), 3000) // 3s timeout
 
     const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
       signal: controller.signal,
@@ -64,7 +64,8 @@ async function fetchUsage(token: string): Promise<{ dailyPct: number; weeklyPct:
 }
 
 function bar(pct: number, width = 10): string {
-  const filled = Math.round((pct / 100) * width)
+  const clamped = Math.max(0, Math.min(100, pct))
+  const filled = Math.round((clamped / 100) * width)
   const block = '\u2588'  // █
   const empty = '\u2591'  // ░
   return block.repeat(filled) + empty.repeat(width - filled)
@@ -100,11 +101,12 @@ async function main() {
   const config = loadConfig()
   const cached = loadState()
 
-  // 1. 캐시에서 즉시 출력 — 네트워크를 기다리지 않으므로 취소돼도 항상 렌더됨
+  // 1. render immediately from cache — doesn't wait on the network, so it always renders even if killed
   process.stdout.write(render(config, cached.daily_pct, cached.weekly_pct, cached.reset_in_seconds))
 
-  // 2. 다음 렌더를 위해 백그라운드로 fetch 후 state 갱신 (출력은 이미 끝남)
-  // ponytail: 프로세스가 살아있는 동안만 갱신됨. Claude Code가 중간에 죽이면 그 회차만 스킵되고 다음 회차가 따라잡음 — 별도 데몬 불필요
+  // 2. fetch in the background and update state for the next render (output is already done)
+  // ponytail: only updates while the process is alive. If Claude Code kills it mid-fetch, that round is
+  // just skipped and the next invocation catches up — no separate daemon needed
   const token = readOAuthToken()
   if (!token) return
   const usage = await fetchUsage(token)
@@ -113,7 +115,7 @@ async function main() {
     daily_pct: usage.dailyPct,
     weekly_pct: usage.weeklyPct,
     reset_in_seconds: usage.resetSecs,
-    override_until: cached.override_until,  // override 보존
+    override_until: cached.override_until,  // preserve override
     updated_at: new Date().toISOString(),
   })
 }
