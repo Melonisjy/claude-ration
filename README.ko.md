@@ -16,7 +16,7 @@
     </a>
   </p>
   <p>
-    <a href="./README.md">English</a> | <strong>한국어</strong>
+    <a href="./README.md">English</a> | <strong>한국어</strong> | <a href="./README.zh-CN.md">简体中文</a>
   </p>
 </div>
 
