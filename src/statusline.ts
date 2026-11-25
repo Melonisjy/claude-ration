@@ -3,6 +3,7 @@ import { loadState, saveState } from './state.js'
 import { homedir } from 'os'
 import { join } from 'path'
 import { readFileSync, existsSync } from 'fs'
+import { execFileSync } from 'child_process'
 
 interface Credentials {
   accessToken?: string
@@ -21,9 +22,15 @@ interface UsageData {
 function readOAuthToken(): string | null {
   try {
     const credPath = join(homedir(), '.claude', '.credentials.json')
-    if (!existsSync(credPath)) return null
-    const creds = JSON.parse(readFileSync(credPath, 'utf-8'))
-    return creds?.claudeAiOauth?.accessToken ?? null
+    // macOS keeps Claude Code credentials in the Keychain, not on disk
+    // ponytail: untested on macOS here — service name is the one Claude Code uses
+    const raw = existsSync(credPath)
+      ? readFileSync(credPath, 'utf-8')
+      : process.platform === 'darwin'
+        ? execFileSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], { encoding: 'utf-8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] })
+        : null
+    if (!raw) return null
+    return JSON.parse(raw)?.claudeAiOauth?.accessToken ?? null
   } catch {
     return null
   }
@@ -111,11 +118,13 @@ async function main() {
   if (!token) return
   const usage = await fetchUsage(token)
   if (!usage) return
+  // re-read right before writing: hooks/override may have changed state during the fetch
+  // (spreading the stale `cached` would reset graceful_grace_used and drop a fresh override)
   saveState({
+    ...loadState(),
     daily_pct: usage.dailyPct,
     weekly_pct: usage.weeklyPct,
     reset_in_seconds: usage.resetSecs,
-    override_until: cached.override_until,  // preserve override
     updated_at: new Date().toISOString(),
   })
 }
