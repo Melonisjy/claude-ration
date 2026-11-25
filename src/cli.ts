@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { addOurs, removeOurs } from './settings.js'
 import { loadConfig, saveConfig } from './config.js'
 import { loadState, saveState } from './state.js'
 import { main as statuslineMain } from './statusline.js'
@@ -14,14 +15,14 @@ const pkg = require('../package.json')
 
 const HOME_SETTINGS_PATH = join(homedir(), '.claude', 'settings.local.json')
 
-const HOOKS = {
-  statusLine: {
-    type: 'command',
-    command: 'npx -y claude-ration@latest statusline',
-  },
+// ponytail: calls the globally installed binary — `npx -y claude-ration@latest` hit the npm registry on every tool call
+const BIN = 'claude-ration'
+
+const OURS = {
+  statusLine: { type: 'command', command: BIN + ' statusline' },
   hooks: {
-    UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-prompt' }] }],
-    PreToolUse: [{ hooks: [{ type: 'command', command: 'npx -y claude-ration@latest hook-tool' }] }],
+    UserPromptSubmit: [{ hooks: [{ type: 'command', command: BIN + ' hook-prompt' }] }],
+    PreToolUse: [{ hooks: [{ type: 'command', command: BIN + ' hook-tool' }] }],
   },
 }
 
@@ -31,74 +32,71 @@ function readJson(path: string): Record<string, unknown> {
 }
 
 function writeJson(path: string, data: Record<string, unknown>): void {
-  const dir = path.substring(0, path.lastIndexOf('/') === -1 ? path.lastIndexOf('\\') : path.lastIndexOf('/'))
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify(data, null, 2))
 }
 
-function applySettings(path: string): void {
-  const s = readJson(path)
-  writeJson(path, {
-    ...s,
-    statusLine: HOOKS.statusLine,
-    hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks },
-    mcpServers: {
-      ...(s.mcpServers as object ?? {}),
-      'claude-ration': {
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', 'claude-ration@latest', 'mcp'],
-      }
-    }
-  })
+function projectSettingsPath(): string | null {
+  const dir = join(process.cwd(), '.claude')
+  return existsSync(dir) ? join(dir, 'settings.local.json') : null
+}
+
+function install(path: string, ours: Parameters<typeof addOurs>[1]): void {
+  const { settings, statusLineSkipped } = addOurs(readJson(path), ours)
+  writeJson(path, settings)
+  console.log('Installed to: ' + path)
+  if (statusLineSkipped) {
+    console.log('  ! statusLine already set by another tool — left untouched.')
+    console.log('    claude-ration reads usage from its statusline, so limits will NOT update until you')
+    console.log('    set "statusLine": { "type": "command", "command": "claude-ration statusline" } yourself.')
+  }
 }
 
 function cmdInstall() {
+  // hooks call `claude-ration` directly, so it must be on PATH (npx runs from a throwaway cache)
+  if (/[\\/]_npx[\\/]/.test(process.argv[1] ?? '')) {
+    console.error('Install globally first:  npm install -g claude-ration  &&  claude-ration install')
+    process.exit(1)
+  }
+
   // 1. home directory
-  applySettings(HOME_SETTINGS_PATH)
-  console.log('Installed to: ' + HOME_SETTINGS_PATH)
+  install(HOME_SETTINGS_PATH, {
+    ...OURS,
+    mcpServers: { 'claude-ration': { type: 'stdio', command: BIN, args: ['mcp'] } },
+  })
 
   // 2. current project's .claude/settings.local.json
-  const projectSettingsDir = join(process.cwd(), '.claude')
-  const projectSettingsPath = join(projectSettingsDir, 'settings.local.json')
-  if (existsSync(projectSettingsDir)) {
-    const s = readJson(projectSettingsPath)
-    writeJson(projectSettingsPath, {
-      ...s,
-      statusLine: HOOKS.statusLine,
-      hooks: { ...(s.hooks as object ?? {}), ...HOOKS.hooks },
-    })
-    console.log('Installed to: ' + projectSettingsPath)
-  }
+  const projectPath = projectSettingsPath()
+  if (projectPath) install(projectPath, OURS)
 
   // 3. register slash commands
   const commandsDir = join(homedir(), '.claude', 'commands')
-  if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true })
+  mkdirSync(commandsDir, { recursive: true })
 
   writeFileSync(join(commandsDir, 'ration-status.md'), `---
 description: Show claude-ration usage and current limits
-allowed-tools: Bash(npx *)
+allowed-tools: Bash(claude-ration *)
 ---
 Run this and show the output:
-!\`npx -y claude-ration@latest status\`
+!\`claude-ration status\`
 `)
 
   writeFileSync(join(commandsDir, 'ration-set.md'), `---
 description: Set claude-ration limit (e.g. /ration-set daily.stop 75)
 argument-hint: <daily.stop|daily.warn|weekly.stop|weekly.warn> <0-100>
-allowed-tools: Bash(npx *)
+allowed-tools: Bash(claude-ration *)
 ---
 Run this and show the result:
-!\`npx -y claude-ration@latest config set $ARGUMENTS\`
+!\`claude-ration config set $ARGUMENTS\`
 `)
 
   writeFileSync(join(commandsDir, 'ration-override.md'), `---
 description: Temporarily disable claude-ration limits (e.g. /ration-override 30)
 argument-hint: [minutes]
-allowed-tools: Bash(npx *)
+allowed-tools: Bash(claude-ration *)
 ---
 Run this and show the result:
-!\`npx -y claude-ration@latest override $ARGUMENTS\`
+!\`claude-ration override $ARGUMENTS\`
 `)
 
   const config = loadConfig()
@@ -112,16 +110,15 @@ Run this and show the result:
 }
 
 function cmdUninstall() {
-  const s = readJson(HOME_SETTINGS_PATH)
-  delete s['statusLine']
-  delete s['mcpServers']
-  if (s.hooks && typeof s.hooks === 'object') {
-    const h = s.hooks as Record<string, unknown>
-    delete h['UserPromptSubmit']
-    delete h['PreToolUse']
-    if (Object.keys(h).length === 0) delete s['hooks']
+  // removes only claude-ration's own entries; other hooks / statusLine / MCP servers are kept
+  for (const path of [HOME_SETTINGS_PATH, projectSettingsPath()]) {
+    if (!path || !existsSync(path)) continue
+    writeJson(path, removeOurs(readJson(path)))
+    console.log('Cleaned: ' + path)
   }
-  writeJson(HOME_SETTINGS_PATH, s)
+  for (const f of ['ration-status.md', 'ration-set.md', 'ration-override.md']) {
+    rmSync(join(homedir(), '.claude', 'commands', f), { force: true })
+  }
   console.log('claude-ration uninstalled.')
 }
 
