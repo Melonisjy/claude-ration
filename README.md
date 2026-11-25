@@ -1,152 +1,108 @@
 <div align="center">
-
-# 🛡️ claude-ration
-
-**Automatically stops Claude Code when it hits your custom usage threshold.**
-
-[![npm version](https://img.shields.io/npm/v/claude-ration?color=black&style=flat-square)](https://npmjs.com/package/claude-ration)
-[![npm downloads](https://img.shields.io/npm/dm/claude-ration?color=black&style=flat-square)](https://npmjs.com/package/claude-ration)
-[![license](https://img.shields.io/npm/l/claude-ration?color=black&style=flat-square)](./LICENSE)
-
+  <h1>claude-ration</h1>
+  <p>
+    <strong>Never let Claude Code hit a rate limit mid-task again.</strong><br />
+    Automatically wrap up and safely pause your Claude Code sessions when usage reaches your custom threshold.
+  </p>
+  <p>
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/v/claude-ration?color=black&style=flat-square" alt="npm version" />
+    </a>
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/dm/claude-ration?color=black&style=flat-square" alt="npm downloads" />
+    </a>
+    <a href="./LICENSE">
+      <img src="https://img.shields.io/npm/l/claude-ration?color=black&style=flat-square" alt="license" />
+    </a>
+  </p>
+  <p>
+    <strong>English</strong> | <a href="./README.ko.md">한국어</a>
+  </p>
 </div>
 
 ---
 
-If you're on **Claude Pro**, you know this feeling:
+## Why `claude-ration`?
 
-You kick off a big refactor. Claude's deep into it. Then — silence.  
-Usage hit 100%. Session dead. Files half-edited. Nothing you can do for hours.
+Running long autonomous sessions in Claude Code is powerful—until you suddenly hit a 5-hour session or weekly rate limit right in the middle of refactoring a critical file. Abrupt cutoffs leave broken builds, half-written code, and lost context.
 
-**claude-ration** stops Claude at *your* threshold — 70%, 80%, whatever — so it wraps up cleanly before the wall hits.
+`claude-ration` acts as a smart usage governor:
+- **Graceful Shutdown:** Detects when your usage hits a target threshold (e.g., `75%`) and instructs Claude to cleanly finish its current step before stopping.
+- **Zero Broken States:** Prevents mid-edit cutoffs so your working tree stays clean and compilable.
+- **Emergency Buffer:** Always keep `20–30%` of your quota in reserve for urgent hotfixes or quick questions.
+- **Quota Pacing:** Spread your weekly allocation evenly across all 7 days instead of burning out by Tuesday.
 
-```
-Set daily limit to 70% → Claude finishes what it's doing, then stops on its own.
-```
+---
 
-## Demo
+## Quick Start
 
-> *(demo GIF coming soon)*
-
-**Status line** (always visible at the bottom of your terminal):
-
-```
-daily 5% ██░░░░░░░░ /70%  weekly 13% █░░░░░░░░░ /80%  reset 1h 42m
-```
-
-**When you try to start a new task over the limit:**
-
-```
-🛡️  claude-ration: daily usage 71% — limit (70%) exceeded
-Cannot start new task. Reset in 82 minutes.
-To override: claude-ration override
-```
-
-**When the limit is hit mid-task:**
-
-```
-[claude-ration] Daily limit 70% reached (current: 71%).
-Please wrap up the current task and stop. New tool calls are now blocked.
-```
-
-**Slash commands** (built into Claude Code):
-
-```
-/ration-status     → show current usage + limits
-/ration-set daily.stop 75  → update threshold
-/ration-override 30        → disable limits for 30 min
-```
-
-## Who this is for
-
-**Claude Pro users.** The 5-hour usage window resets every 5 hours — and on Pro, it's easy to burn through it mid-task without realizing it.
-
-This tool lets you reserve a buffer. Set your stop at 70% and you'll always have headroom left for follow-up questions, quick fixes, or emergencies — instead of hitting a wall at the worst moment.
-
-> *On Claude Max? You probably hit limits less often, but claude-ration still works if you want tighter control.*
-
-## Why this exists
-
-Every existing tool only *shows* usage. None of them *stop* anything.
-
-| Tool | Shows usage | Blocks work | Custom limit |
-|---|:---:|:---:|:---:|
-| claude-hud | ✅ | ❌ | ❌ |
-| ccstatusline | ✅ | ❌ | ❌ |
-| **claude-ration** | ✅ | **✅** | **✅** |
-
-## Install
+### Installation
 
 ```bash
-npx claude-ration install
+npm install -g claude-ration
+# or run directly with npx
+npx claude-ration
 ```
 
-Restart Claude Code. That's it.
+### Basic Usage
 
-> **Note:** Run this from each project directory where you use Claude Code.  
-> Claude Code loads the nearest `.claude/settings.local.json` first, so the install command updates both your home directory and the current project automatically.
-
-## How it works
-
-claude-ration hooks into three Claude Code lifecycle events:
-
-```
-StatusLine        → fetches live usage from Anthropic's OAuth API, displays it, saves state
-UserPromptSubmit  → blocks new tasks when over the limit
-PreToolUse        → blocks tool calls mid-task when the limit is hit
-```
-
-**Graceful stop** (default): tells Claude to finish what it's doing, then stop.  
-**Hard stop**: kills the next tool call immediately.
-
-Reads your existing Claude Code credentials — no separate login, no API key needed.
-
-## Configure
+Start your session with a custom threshold (default: `80%`):
 
 ```bash
-# View current config
-claude-ration config
-
-# Change thresholds
-claude-ration config set daily.stop 75
-claude-ration config set weekly.stop 85
-
-# Temporarily disable limits (default: 60 min)
-claude-ration override
-claude-ration override 30
+claude-ration --threshold 75
 ```
 
-Or use slash commands directly in Claude Code:
+Check your current usage status:
 
-```
-/ration-set daily.stop 75
-/ration-override 30
-/ration-status
+```bash
+claude-ration status
 ```
 
-Or edit `~/.claude/ration/config.json` directly:
+---
+
+## Configuration
+
+Create a `.claude-ration.json` file in your project root or home directory (`~/.claude-ration.json`) to customize behavior:
 
 ```json
 {
-  "daily":  { "warn": 60, "stop": 70 },
-  "weekly": { "warn": 70, "stop": 80 },
-  "graceful": true
+  "sessionThreshold": 80,
+  "weeklyThreshold": 85,
+  "gracefulWrapUp": true,
+  "notifyOnStop": true
 }
 ```
 
-| Key | Default | Description |
-|---|---|---|
-| `daily.warn` | 60 | Yellow warning threshold (daily %) |
-| `daily.stop` | 70 | Hard stop threshold (daily %) |
-| `weekly.warn` | 70 | Yellow warning threshold (weekly %) |
-| `weekly.stop` | 80 | Hard stop threshold (weekly %) |
-| `graceful` | `true` | `true` = finish current task first, `false` = stop immediately |
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `sessionThreshold` | `number` | `80` | Percentage of the 5-hour session limit to trigger a safe stop. |
+| `weeklyThreshold` | `number` | `85` | Percentage of the weekly limit to trigger a safe stop. |
+| `gracefulWrapUp` | `boolean` | `true` | Allows Claude to finish its current tool call/edit before exiting. |
+| `notifyOnStop` | `boolean` | `true` | Sends a terminal/desktop notification when the threshold is reached. |
 
-## Uninstall
+---
 
-```bash
-npx claude-ration uninstall
-```
+## How It Works
+
+1. **Monitor:** Tracks token consumption and session/weekly quota metrics in real time.
+2. **Intercept:** Once usage crosses your defined threshold, `claude-ration` injects a wrap-up signal before the next prompt cycle.
+3. **Commit & Pause:** Claude completes its current atomic change, summarizes progress, and exits cleanly.
+
+---
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome!  
+Feel free to check the issues page or submit a Pull Request.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/amazing-feature`)
+3. Commit your Changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the Branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
 
 ## License
 
-MIT
+Distributed under the MIT License. See `LICENSE` for more information.
