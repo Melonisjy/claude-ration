@@ -5,14 +5,14 @@
     当使用量达到自定义阈值时，自动收尾当前工作并安全暂停 Claude Code 会话。
   </p>
   <p>
-    <a href="https://npmjs.com">
-      <img src="https://shields.io" alt="npm version" />
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/v/claude-ration?color=black&style=flat-square" alt="npm version" />
     </a>
-    <a href="https://npmjs.com">
-      <img src="https://shields.io" alt="npm downloads" />
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/dm/claude-ration?color=black&style=flat-square" alt="npm downloads" />
     </a>
     <a href="./LICENSE">
-      <img src="https://shields.io" alt="license" />
+      <img src="https://img.shields.io/npm/l/claude-ration?color=black&style=flat-square" alt="license" />
     </a>
   </p>
   <p>
