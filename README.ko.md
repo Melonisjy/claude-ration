@@ -5,11 +5,14 @@
     설정한 임계값에 도달하면 진행 중인 작업을 깔끔하게 마무리하고 안전하게 멈춰주는 사용량 관리 도구입니다.
   </p>
   <p>
-    <a href="https://npmjs.com">
-      <img src="https://shields.io" alt="npm version" />
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/v/claude-ration?color=black&style=flat-square" alt="npm version" />
+    </a>
+    <a href="https://npmjs.com/package/claude-ration">
+      <img src="https://img.shields.io/npm/dm/claude-ration?color=black&style=flat-square" alt="npm downloads" />
     </a>
     <a href="./LICENSE">
-      <img src="https://shields.io" alt="License: MIT" />
+      <img src="https://img.shields.io/npm/l/claude-ration?color=black&style=flat-square" alt="license" />
     </a>
   </p>
   <p>
