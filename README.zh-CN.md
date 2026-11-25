@@ -24,69 +24,95 @@
 
 ## 为什么需要 `claude-ration`？
 
-让 Claude Code 长时间自动运行非常高效——直到它在重构关键文件的中途突然触发 5 小时会话限制或每周额度上限。强制中断往往会导致代码损坏、构建失败以及上下文丢失。
+长时间运行 Claude Code 很高效——直到你在重构中途撞上 5 小时或每周额度上限，文件改到一半就被强行中断。
 
-`claude-ration` 充当智能额度管家：
-- **优雅停机 (Graceful Shutdown)：** 当使用量达到目标阈值（例如 `75%`）时，不会立即强制终止，而是让 Claude 完整收尾当前步骤后再停止。
-- **杜绝代码损坏：** 避免在文件修改一半时中断，确保工作区代码始终干净且可编译。
-- **紧急备用额度：** 始终预留 `20–30%` 的额度，以应对紧急线上修复（Hotfix）或临时提问。
-- **额度合理分配：** 将每周总配额均匀分配到 7 天，避免周二就把一周的额度全部耗尽。
+`claude-ration` 是基于 Claude Code hooks 的用量管控工具：
+- **提前停下：** 用量超过 `stop` 阈值后，新的提示词和工具调用都会被拦截。
+- **Graceful 模式：** 超限后的第一次工具调用仍会放行，让 Claude 完成当前步骤；之后的调用会被拦截。
+- **保留余量：** 在 `70%` 停下，剩余额度留给紧急修复（需要时使用 `override`）。
+- **实时状态栏：** 以彩色进度条显示 5 小时和每周用量。
+
+```
+daily 42% ████░░░░░░ /70%  weekly 18% ██░░░░░░░░ /80%  reset 2h 13m
+```
 
 ---
 
 ## 快速开始 (Quick Start)
 
-### 安装
-
 ```bash
 npm install -g claude-ration
-# 或直接使用 npx 运行
-npx claude-ration
+claude-ration install
 ```
 
-### 基本用法
+然后重启 Claude Code 即可。
 
-指定自定义阈值启动会话（默认：`80%`）：
+> 必须全局安装：hooks 直接调用 `claude-ration` 可执行文件，避免每次工具调用都查询 npm。因此 `npx claude-ration install` 会被拒绝。
 
-```bash
-claude-ration --threshold 75
-```
+`install` 会写入 `~/.claude/settings.local.json`（如果当前项目有 `.claude` 文件夹，也会写入 `./.claude/settings.local.json`）：
+- `statusLine` —— **仅在你尚未配置其他状态栏时**（见[使用其他状态栏](#使用其他状态栏)）
+- `UserPromptSubmit` 和 `PreToolUse` hooks —— 追加在已有 hooks 之后，原有 hooks 保持不变
+- 一个 MCP 服务器，以及斜杠命令 `/ration-status`、`/ration-set`、`/ration-override`
 
-查看当前额度使用状态：
+卸载：`claude-ration uninstall`，只会删除 claude-ration 自己添加的条目。
 
-```bash
-claude-ration status
-```
+---
+
+## 命令
+
+| 命令 | 说明 |
+| :--- | :--- |
+| `claude-ration install` | 注册 hooks、状态栏和斜杠命令 |
+| `claude-ration uninstall` | 仅删除 claude-ration 的条目 |
+| `claude-ration status` | 显示当前用量和阈值 |
+| `claude-ration config` | 输出当前配置 |
+| `claude-ration config set <key> <0-100>` | 修改阈值，例如 `config set daily.stop 75` |
+| `claude-ration override [分钟]` | 临时解除限制（默认 60 分钟） |
+
+在 Claude Code 中：`/ration-status`、`/ration-set daily.stop 75`、`/ration-override 30`。
 
 ---
 
 ## 配置 (Configuration)
 
-在项目根目录或用户主目录（`~/.claude-ration.json`）创建配置文件以自定义行为：
+保存在 `~/.claude/ration/config.json`（执行 `config set` 时创建）：
 
 ```json
 {
-  "sessionThreshold": 80,
-  "weeklyThreshold": 85,
-  "gracefulWrapUp": true,
-  "notifyOnStop": true
+  "daily":  { "warn": 60, "stop": 70 },
+  "weekly": { "warn": 70, "stop": 80 },
+  "graceful": true
 }
 ```
 
-| 选项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `sessionThreshold` | `number` | `80` | 触发安全停止的 5 小时会话额度百分比 (%) |
-| `weeklyThreshold` | `number` | `85` | 触发安全停止的每周额度百分比 (%) |
-| `gracefulWrapUp` | `boolean` | `true` | 退出前是否允许 Claude 完成当前正在执行的文件编辑/命令 |
-| `notifyOnStop` | `boolean` | `true` | 达到阈值时是否发送终端/桌面通知 |
+| 键 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `daily.warn` | `60` | 5 小时窗口用量（%）超过此值时状态栏变黄 |
+| `daily.stop` | `70` | 5 小时窗口用量（%）超过此值时拦截提示词和工具调用 |
+| `weekly.warn` | `70` | 每周用量（%）超过此值时状态栏变黄 |
+| `weekly.stop` | `80` | 每周用量（%）超过此值时拦截提示词和工具调用 |
+| `graceful` | `true` | 超限后再放行一次工具调用以便收尾。`false` 表示立即拦截（需直接编辑文件） |
+
+> `daily` 指的是 Claude 的 **5 小时**用量窗口，而不是自然日。
 
 ---
 
 ## 工作原理
 
-1. **实时监控：** 实时追踪 Token 消耗以及会话/每周配额指标。
-2. **阈值拦截：** 一旦使用量超过设定阈值，`claude-ration` 会在下一个提示词周期前注入收尾信号。
-3. **提交并暂停：** Claude 完成当前的原子化修改，总结进度并安全退出。
+1. **状态栏：** Claude Code 每次刷新状态栏时，获取当前 5 小时/每周用量并缓存到 `~/.claude/ration/state.json`。
+2. **`UserPromptSubmit` hook：** 超过 `stop` 阈值时拦截新提示词，并显示原因和重置时间。
+3. **`PreToolUse` hook：** 超过 `stop` 阈值时，graceful 模式下放行一次工具调用，之后全部拒绝，Claude 随之停止。
+4. **Override：** `claude-ration override 30` 临时解除限制 30 分钟。
+
+### 使用其他状态栏
+
+用量数据只在运行 `claude-ration statusline` 时更新。如果你已在使用其他状态栏，`install` 不会覆盖它，只会给出警告——但这样用量不会更新，限制也不会生效。请改为 `"command": "claude-ration statusline"`，或在你自己的状态栏脚本中一并调用。
+
+### 注意事项
+
+- 用量读取自 Claude Code `/usage` 所用的接口，它不是公开 API，可能随时变更。
+- 凭据读取自 `~/.claude/.credentials.json`（macOS 上为钥匙串）。仅支持 Claude 订阅（OAuth）登录；使用 API key 时用量始终为 0%。
+- 达到限制后斜杠命令也可能被拦截，请在另一个终端运行 `claude-ration override`。
 
 ---
 

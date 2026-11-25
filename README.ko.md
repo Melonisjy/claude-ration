@@ -24,69 +24,95 @@
 
 ## 왜 `claude-ration`이 필요한가요?
 
-Claude Code에 큰 작업을 맡겨두고 자리를 비웠을 때, 갑자기 5시간 세션 또는 주간 한도에 걸려 작업이 강제 중단되면 코드가 어중간하게 깨지고 컨텍스트를 잃게 됩니다.
+Claude Code로 긴 작업을 돌리다 보면, 리팩터링 도중 5시간 한도나 주간 한도에 걸려 파일이 반쯤 수정된 채로 끊기는 일이 생깁니다.
 
-`claude-ration`은 사용량의 안전장치를 제공합니다:
-- **안전한 작업 마무리 (Graceful Shutdown):** 설정한 임계값(예: `75%`)에 도달하면 즉시 강제 종료하지 않고, 현재 진행 중인 작업 단계를 깔끔하게 정리한 뒤 멈춥니다.
-- **코드 손상 방지:** 파일 수정 도중 끊겨 빌드 에러나 충돌이 발생하는 상황을 예방합니다.
-- **긴급 여유분 확보:** 항상 `20~30%`의 한도를 남겨두어 급한 버그 수정(Hotfix)에 바로 대응할 수 있습니다.
-- **주간 한도 배분:** 월·화요일에 주간 할당량을 다 써버리는 일을 막고 일주일 내내 안정적으로 사용할 수 있습니다.
+`claude-ration`은 Claude Code 훅 기반의 사용량 관리 도구입니다:
+- **한도 전에 멈춤:** 사용량이 `stop` 임계값을 넘으면 새 프롬프트와 도구 호출을 막습니다.
+- **Graceful 모드:** 한도를 넘은 뒤 첫 도구 호출 한 번은 허용해서 Claude가 현재 단계를 마무리하게 하고, 그다음 호출부터 막습니다.
+- **여유분 확보:** `70%`에서 멈추면 나머지 사용량은 급한 수정용으로 남습니다 (필요할 때 `override`).
+- **실시간 상태줄:** 5시간/주간 사용량을 색깔 막대로 보여줍니다.
+
+```
+daily 42% ████░░░░░░ /70%  weekly 18% ██░░░░░░░░ /80%  reset 2h 13m
+```
 
 ---
 
 ## 빠른 시작 (Quick Start)
 
-### 설치
-
 ```bash
 npm install -g claude-ration
-# 또는 설치 없이 바로 실행
-npx claude-ration
+claude-ration install
 ```
 
-### 기본 사용법
+그다음 Claude Code를 재시작하면 끝입니다.
 
-원하는 임계값(기본값: `80%`)을 지정해 실행합니다:
+> 전역 설치가 필요합니다. 훅이 `claude-ration` 바이너리를 직접 호출해야 도구 호출마다 npm 조회가 생기지 않기 때문입니다. 그래서 `npx claude-ration install`은 거부됩니다.
 
-```bash
-claude-ration --threshold 75
-```
+`install`은 `~/.claude/settings.local.json`에 다음을 추가합니다 (현재 프로젝트에 `.claude` 폴더가 있으면 `./.claude/settings.local.json`에도):
+- `statusLine` — **다른 상태줄이 없을 때만** ([다른 상태줄을 쓰는 경우](#다른-상태줄을-쓰는-경우) 참고)
+- `UserPromptSubmit`, `PreToolUse` 훅 — 기존 훅 뒤에 추가되며, 기존 훅은 그대로 유지됩니다
+- MCP 서버와 슬래시 명령 `/ration-status`, `/ration-set`, `/ration-override`
 
-현재 사용량 상태 확인:
+제거는 `claude-ration uninstall` — claude-ration이 추가한 항목만 지웁니다.
 
-```bash
-claude-ration status
-```
+---
+
+## 명령어
+
+| 명령 | 설명 |
+| :--- | :--- |
+| `claude-ration install` | 훅, 상태줄, 슬래시 명령 등록 |
+| `claude-ration uninstall` | claude-ration 항목만 제거 |
+| `claude-ration status` | 현재 사용량과 임계값 표시 |
+| `claude-ration config` | 현재 설정 출력 |
+| `claude-ration config set <key> <0-100>` | 임계값 변경, 예: `config set daily.stop 75` |
+| `claude-ration override [분]` | 일시적으로 제한 해제 (기본 60분) |
+
+Claude Code 안에서는: `/ration-status`, `/ration-set daily.stop 75`, `/ration-override 30`.
 
 ---
 
 ## 설정 (Configuration)
 
-프로젝트 루트 또는 홈 디렉토리(`~/.claude-ration.json`)에 설정 파일을 생성해 세부 동작을 제어할 수 있습니다:
+`~/.claude/ration/config.json`에 저장됩니다 (`config set` 시 생성):
 
 ```json
 {
-  "sessionThreshold": 80,
-  "weeklyThreshold": 85,
-  "gracefulWrapUp": true,
-  "notifyOnStop": true
+  "daily":  { "warn": 60, "stop": 70 },
+  "weekly": { "warn": 70, "stop": 80 },
+  "graceful": true
 }
 ```
 
-| 옵션 | 타입 | 기본값 | 설명 |
-| :--- | :--- | :--- | :--- |
-| `sessionThreshold` | `number` | `80` | 안전 종료를 실행할 5시간 세션 한도 비율 (%) |
-| `weeklyThreshold` | `number` | `85` | 안전 종료를 실행할 주간 한도 비율 (%) |
-| `gracefulWrapUp` | `boolean` | `true` | 종료 전 현재 진행 중인 파일 수정/명령을 마무리할지 여부 |
-| `notifyOnStop` | `boolean` | `true` | 임계값 도달 시 터미널/데스크톱 알림 표시 여부 |
+| 키 | 기본값 | 설명 |
+| :--- | :--- | :--- |
+| `daily.warn` | `60` | 5시간 사용량(%)이 이 값을 넘으면 상태줄이 노란색 |
+| `daily.stop` | `70` | 5시간 사용량(%)이 이 값을 넘으면 프롬프트와 도구 호출 차단 |
+| `weekly.warn` | `70` | 주간 사용량(%)이 이 값을 넘으면 상태줄이 노란색 |
+| `weekly.stop` | `80` | 주간 사용량(%)이 이 값을 넘으면 프롬프트와 도구 호출 차단 |
+| `graceful` | `true` | 한도 초과 후 도구 호출 한 번을 더 허용해 마무리. `false`면 즉시 차단 (파일 직접 수정) |
+
+> `daily`는 달력상 하루가 아니라 Claude의 **5시간** 사용 창을 뜻합니다.
 
 ---
 
 ## 작동 원리
 
-1. **실시간 모니터링:** 세션 및 주간 토큰 사용량을 실시간으로 추적합니다.
-2. **임계값 감지:** 지정한 한도 비율에 도달하면 다음 작업 사이클 전에 마무리 신호를 전달합니다.
-3. **정리 후 종료:** Claude가 현재 수정 중인 코드를 안전하게 저장하고 진행 상황을 요약한 뒤 종료합니다.
+1. **상태줄:** Claude Code가 상태줄을 갱신할 때마다 현재 5시간/주간 사용률을 가져와 `~/.claude/ration/state.json`에 캐시합니다.
+2. **`UserPromptSubmit` 훅:** `stop` 임계값을 넘으면 새 프롬프트를 막고 사유와 리셋 시간을 보여줍니다.
+3. **`PreToolUse` 훅:** `stop` 임계값을 넘으면 graceful 모드에서는 도구 호출 한 번을 통과시키고, 그 뒤로는 모두 거부해 Claude가 멈춥니다.
+4. **Override:** `claude-ration override 30`으로 30분간 제한을 해제합니다.
+
+### 다른 상태줄을 쓰는 경우
+
+사용량은 `claude-ration statusline`이 실행될 때만 갱신됩니다. 이미 다른 상태줄을 쓰고 있으면 `install`은 그대로 두고 경고만 출력합니다. 이 경우 사용량이 갱신되지 않아 제한이 동작하지 않으니, `"command": "claude-ration statusline"`으로 바꾸거나 기존 상태줄 스크립트에서 함께 호출하세요.
+
+### 주의사항
+
+- 사용량은 Claude Code의 `/usage`가 쓰는 엔드포인트에서 읽습니다. 공개 API가 아니라서 예고 없이 바뀔 수 있습니다.
+- 인증 정보는 `~/.claude/.credentials.json`(macOS는 키체인)에서 읽습니다. Claude 구독(OAuth) 로그인만 지원하며, API 키를 쓰면 사용량이 0%로 표시됩니다.
+- 한도에 걸리면 슬래시 명령도 막힐 수 있습니다. 다른 터미널에서 `claude-ration override`를 실행하세요.
 
 ---
 
